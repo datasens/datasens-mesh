@@ -76,9 +76,7 @@ void TaskMQTTreconnect(void *pvParameters){
 
 void TaskPubMoreInertData(void *pvParameters){
     while(1){
-        if(lux != 0){
-            client.publish(lux_topic, String(lux).c_str(), true);
-        }
+        client.publish(lux_topic, String(lux).c_str(), true);
         delay(500);
     }
 }
