@@ -37,6 +37,7 @@ void getBMP180(double& temp, double& press){
     Serial.println("BMP180:");
     if(status != 0){
         delay(status);
+        delay(10);
         status = bmp180.getTemperature(temp);
         if(status !=0){
             Serial.print("Temperature: ");
@@ -46,6 +47,7 @@ void getBMP180(double& temp, double& press){
             status = bmp180.startPressure(3);
             if(status != 0){
                 delay(status);
+                delay(10);
                 status = bmp180.getPressure(press,temp);
                 if(status != 0){
                     Serial.print("Pressure: ");
