@@ -23,11 +23,6 @@
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-float hum, lux;
-double temp, press;
-
-void TaskMoreInertSensor(void *pvParameters);
-void TaskLessInertSensor(void *pvParameters);
 void TaskMQTTreconnect(void *pvParameters);
 void TaskPubMoreInertData(void *pvParameters);
 void TaskPubLessInertData(void *pvParameters);
@@ -50,26 +45,9 @@ void app_main(){
     client.setServer(mqtt_server, 1883); // set MQTT server info
 
     xTaskCreate(TaskMQTTreconnect, "MQTTreconnect", 2048, NULL, 2, NULL);
-    xTaskCreate(TaskLessInertSensor, "Lux", 2048, NULL, 3, NULL);
-    xTaskCreate(TaskMoreInertSensor, "TempHumPress", 2048, NULL, 3, NULL);
-    xTaskCreate(TaskPubLessInertData, "PubLessInertData", 2048, NULL, 3, NULL);
-    xTaskCreate(TaskPubMoreInertData, "PubMoreInertData", 2048, NULL, 3, NULL);
+    xTaskCreate(TaskPubLessInertData, "PubLessInertData", 4096, NULL, 3, NULL);
+    xTaskCreate(TaskPubMoreInertData, "PubMoreInertData", 4096, NULL, 3, NULL);
     xTaskCreate(TaskSyncTime,"SyncTime", 2048, NULL, 1, NULL);
-}
-
-void TaskLessInertSensor(void *pvParameters){
-    while(1){
-        getBH1750(lux);
-        delay(500);
-    }
-}
-
-void TaskMoreInertSensor(void *pvParameters){
-    while(1){
-        getBMP180(temp, press);
-        getAM2320(hum);
-        delay(2000);
-    }
 }
 
 void TaskMQTTreconnect(void *pvParameters){
@@ -80,6 +58,8 @@ void TaskMQTTreconnect(void *pvParameters){
 
 void TaskPubLessInertData(void *pvParameters){
     while(1){
+        float lux;
+        getBH1750(lux);
         client.publish(lux_topic, addTime(lux).c_str(), true);
         delay(1000);
     }
@@ -87,6 +67,10 @@ void TaskPubLessInertData(void *pvParameters){
 
 void TaskPubMoreInertData(void *pvParameters){
     while(1){
+        float hum;
+        double temp, press;
+        getBMP180(temp, press);
+        getAM2320(hum);
         client.publish(temperature_topic, addTime(temp).c_str(), true);
         client.publish(humidity_topic, addTime(hum).c_str(), true);
         client.publish(pressure_topic, addTime(press).c_str(), true);
@@ -134,17 +118,14 @@ String addTime(double measure){
 
 void setup_wifi(){
     delay(10);
-
     Serial.println();
     Serial.print("Connecting to ");
     Serial.println(wifi_ssid);
     WiFi.begin(wifi_ssid, wifi_password);
-
     while(WiFi.status() != WL_CONNECTED){
         delay(500);
         Serial.print(".");
     }
-
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
