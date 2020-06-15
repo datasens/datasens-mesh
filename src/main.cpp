@@ -7,6 +7,9 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "sensors.h"
+extern "C"{
+    #include "mesh.h"
+}
 
 #define wifi_ssid "wifi_name"
 #define wifi_password "wifi_password"
@@ -31,23 +34,31 @@ void setup_wifi();
 void MQTTreconnect();
 void syncTime();
 String addTime(double measure);
+void TaskMeshMQTT();
 
 extern "C" {
     void app_main();
 }
 
 void app_main(){
+    mesh_init();
+    //ESP_ERROR_CHECK(esp_mesh_set_self_organized(0,0));
+    //TaskMeshMQTT();
+    //xTaskCreate(TaskMeshMQTT, "MQTTmesh", 2048, NULL, 1, NULL);
     initArduino();
-
     Serial.begin(115200);
+
     sensorsBegin();
-    setup_wifi();
+    //setup_wifi();
+    
     client.setServer(mqtt_server, 1883); // set MQTT server info
 
     xTaskCreate(TaskMQTTreconnect, "MQTTreconnect", 2048, NULL, 2, NULL);
     xTaskCreate(TaskPubLessInertData, "PubLessInertData", 4096, NULL, 3, NULL);
-    xTaskCreate(TaskPubMoreInertData, "PubMoreInertData", 4096, NULL, 3, NULL);
-    xTaskCreate(TaskSyncTime,"SyncTime", 2048, NULL, 1, NULL);
+    //xTaskCreate(TaskPubMoreInertData, "PubMoreInertData", 4096, NULL, 3, NULL);
+    //xTaskCreate(TaskSyncTime,"SyncTime", 2048, NULL, 1, NULL);
+    
+    //ESP_ERROR_CHECK(esp_mesh_set_self_organized(1,0));
 }
 
 void TaskMQTTreconnect(void *pvParameters){
@@ -60,7 +71,9 @@ void TaskPubLessInertData(void *pvParameters){
     while(1){
         float lux;
         getBH1750(lux);
-        client.publish(lux_topic, addTime(lux).c_str(), true);
+        if(lux != -1.00){
+            client.publish(lux_topic, addTime(lux).c_str(), true);
+        }
         delay(1000);
     }
 }
@@ -88,7 +101,7 @@ void TaskSyncTime(void *pvParameters){
 void MQTTreconnect(){
     while(!client.connected()){
         Serial.print("Attempting MQTT connection...");
-        if(client.connect("ESP32")){
+        if(client.connect("ESP32", mqtt_user, mqtt_password)){
             Serial.println("connected");
         }else{
             Serial.print("failed, rc=");
@@ -130,4 +143,30 @@ void setup_wifi(){
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
+}
+
+void TaskMeshMQTT(){
+    while(1){
+        uint8_t sendBuffer[MESH_MPS];
+        mesh_addr_t dest;
+        mesh_data_t data_des;
+        int send_flag = 0;
+        mesh_opt_t send_opt;
+        const char message[] = "testmessage";
+        
+        memcpy(sendBuffer,message,sizeof(message));
+
+        data_des.data = sendBuffer;
+        data_des.size = sizeof(message);
+        data_des.proto = MESH_PROTO_MQTT;
+        data_des.tos = MESH_TOS_P2P;
+
+        send_flag += MESH_DATA_NONBLOCK;
+        send_flag += MESH_DATA_TODS;
+
+        IP4_ADDR(&dest.mip.ip4, 192,168,1,201);
+        dest.mip.port = 1883;
+        ESP_ERROR_CHECK(esp_mesh_send(&dest,&data_des,send_flag,NULL,0));
+        delay(1000);
+    }
 }
